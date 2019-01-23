@@ -1,0 +1,155 @@
+version: '2.2'
+services:
+  puppeteer:
+    image: ider/pyspider-puppeteer:latest
+    cpu_shares: 512
+    mem_limit: 2G
+    expose:
+      - '22222'
+    restart: always
+    scale: 2
+    networks:
+      - default
+  
+  puppeteer-lb:
+    image: 'dockercloud/haproxy:latest'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    links:
+      - puppeteer
+    restart: always
+    networks:
+      - default
+
+  splash:
+    image: scrapinghub/splash:latest
+    cpu_shares: 512
+    mem_limit: 2G
+    command: "--max-timeout 240"
+    environment:
+      - 'EXCLUDE_PORTS=5023'
+    expose:
+      - '8085'
+    restart: always
+    scale: 2
+    networks:
+      - default
+
+  splash-lb:
+    image: 'dockercloud/haproxy:latest'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    links:
+      - splash
+    restart: always
+    networks:
+      - default
+
+  fetcher:
+    # image: ider/pyspider:latest
+    build: .
+    links:
+      - 'splash-lb:splash'
+      - 'puppeteer-lb:puppeteer'
+      - 'postgres'
+      - 'rabbitmq'
+    environment:
+      - 'EXCLUDE_PORTS=5000,25555,23333'
+    command : '--message-queue "amqp://pyspider:pyspider@rabbitmq:5672/%2F" fetcher --splash-endpoint="http://splash/execute" --puppeteer-endpoint="http://puppeteer/"  --xmlrpc'
+    mem_limit: 128m
+    expose:
+      - '24444'
+    cpu_shares: 512
+    restart: always
+    scale: 2
+    networks:
+      - default
+
+  fetcher-lb:
+    image: 'dockercloud/haproxy:latest'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    links:
+      - fetcher
+    restart: always
+    networks:
+      - default
+#
+  result:
+    # image: ider/pyspider:latest
+    build: .
+    links:
+      - 'postgres'
+      - 'rabbitmq'
+    command: '--taskdb "sqlalchemy+postgresql+taskdb://pyspider:pyspider@postgres:5432/pyspider_taskdb"  --resultdb "sqlalchemy+postgresql+resultdb://pyspider:pyspider@postgres:5432/pyspider_resultdb"  --projectdb "sqlalchemy+postgresql+projectdb://pyspider:pyspider@postgres:5432/pyspider_projectdb"  --message-queue "amqp://pyspider:pyspider@rabbitmq:5672/%2F" result-worker'
+    mem_limit: 256m
+    restart: always
+    scale: 1
+    networks:
+      - default
+
+  processor:
+    # image: ider/pyspider:latest
+    build: .
+    links:
+      - 'postgres'
+      - 'rabbitmq'
+    command: '--projectdb "sqlalchemy+postgresql+projectdb://pyspider:pyspider@postgres:5432/pyspider_projectdb"  --message-queue "amqp://pyspider:pyspider@rabbitmq:5672/%2F" processor'
+    mem_limit: 256m
+    restart: always
+    scale: 1
+    networks:
+      - default
+      
+  webui:
+    # image: ider/pyspider:latest
+    build: .
+    links:
+      - 'fetcher-lb:fetcher'
+      - 'scheduler'
+      - 'postgres'
+      - 'rabbitmq'
+    command: '--taskdb "sqlalchemy+postgresql+taskdb://pyspider:pyspider@postgres:5432/pyspider_taskdb"  --resultdb "sqlalchemy+postgresql+resultdb://pyspider:pyspider@postgres:5432/pyspider_resultdb"  --projectdb "sqlalchemy+postgresql+projectdb://pyspider:pyspider@postgres:5432/pyspider_projectdb"  --message-queue "amqp://pyspider:pyspider@rabbitmq:5672/%2F" webui --scheduler-rpc "http://scheduler:23333/" --fetcher-rpc "http://fetcher/" --need-auth --username pyspider --password pyspider'
+    ports:
+      - "5000:5000"
+    restart: always
+    networks:
+      - default
+
+  scheduler:
+    # image: ider/pyspider:latest
+    build: .
+    links:
+      - 'postgres'
+      - 'rabbitmq'
+    command: '--taskdb "sqlalchemy+postgresql+taskdb://pyspider:pyspider@postgres:5432/pyspider_taskdb"  --resultdb "sqlalchemy+postgresql+resultdb://pyspider:pyspider@postgres:5432/pyspider_resultdb"  --projectdb "sqlalchemy+postgresql+projectdb://pyspider:pyspider@postgres:5432/pyspider_projectdb"  --message-queue "amqp://pyspider:pyspider@rabbitmq:5672/%2F" scheduler'
+    restart: always
+    networks:
+      - default
+
+  postgres:
+    image: postgres:alpine
+    restart: always
+    # volumes:
+    #   - /data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: pyspider
+      POSTGRES_USER: pyspider
+    ports:
+      - 5432:5432
+    networks:
+      - default
+
+  rabbitmq:
+    image: rabbitmq:management-alpine
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=pyspider
+      - RABBITMQ_DEFAULT_PASS=pyspider
+    restart: always
+    networks:
+      - default
+
+
