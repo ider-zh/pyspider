@@ -22,7 +22,7 @@ WORKDIR /opt/pyspider
 RUN pip install -e .[all]
 
 # isntall your package
-RUN pip install arrow bs4 html5lib deep-diff
+RUN pip install arrow bs4 html5lib deep-diff dataset
 
 VOLUME ["/opt/pyspider"]
 ENTRYPOINT ["pyspider"]
