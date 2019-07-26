@@ -1,3 +1,4 @@
+// 可以自定义调整 proxy,对于不同的 ip 代理，使用 pool 管理
 const express = require("express");
 const puppeteer = require('puppeteer');
 const bodyParser = require('body-parser');
@@ -7,23 +8,26 @@ const app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: false}));
 
-let init_browser = true;
+let browser_pools = {}
 let browser_settings = {};
 
 app.use(async (req, res, next) => {
-    if (init_browser) {
-        var options = req.body;
+    var options = req.body;
+    if (options.proxy) {
+        if (options.proxy.indexOf("://") == -1) {
+            options.proxy = "http://" + options.proxy;
+        }
+    }
+    if (!!!((options.proxy || 'null') in browser_pools)) {
+        console.log(!!!((options.proxy || 'null') in browser_pools))
+        browser_settings["args"] = ['--no-sandbox','--disable-dev-shm-usage'];
+        // browser_settings["executablePath"] = '/usr/bin/chromium-browser';
         if (options.proxy) {
-            if (options.proxy.indexOf("://") == -1) {
-                options.proxy = "http://" + options.proxy;
-            }
             browser_settings["args"] = ['--no-sandbox', "--disable-setuid-sandbox", "--proxy-server="+options.proxy];
-        } else {
-          browser_settings["args"] = ['--no-sandbox', "--disable-setuid-sandbox"];
         }
         browser_settings["headless"] = options.headless === "false"? false:true
-        browser = await puppeteer.launch(browser_settings);
-        init_browser=false;
+        let browser = await puppeteer.launch(browser_settings);
+        browser_pools[options.proxy || 'null'] = browser
         console.log("init browser success!");
         next();
     } else {
@@ -33,7 +37,8 @@ app.use(async (req, res, next) => {
 
 
 async function fetch(options) {
-    var page = await browser.newPage();
+    let browser = browser_pools[options.proxy || 'null']
+    let page = await browser.newPage();
     options.start_time = Date.now();
     try {
         await _fetch(page, options);
@@ -41,7 +46,7 @@ async function fetch(options) {
         await page.close();
         return result
     } catch (error) {
-        console.log('catch error ', error);
+        // console.trace(error)
         var result = await make_result(page, options, error);
         await page.close();
         return result
@@ -49,7 +54,6 @@ async function fetch(options) {
 }
 
 async function _fetch(page, options) {
-
     width = options.js_viewport_width || 1024;
     height = options.js_viewport_height || 768 * 3;
     await page.setViewport({
@@ -58,6 +62,7 @@ async function _fetch(page, options) {
     });
 
     if (options.headers) {
+        // options.headers = JSON.parse(options.headers);
         await page.setExtraHTTPHeaders(options.headers);
     }
 
@@ -65,9 +70,9 @@ async function _fetch(page, options) {
         page.setUserAgent(options.headers["User-Agent"]);
     }
 
-    page.on("console", msg => {
-        console.log('console: ' + msg.args());
-    });
+    // page.on("console", msg => {
+    //     console.log('console: ' + msg.args());
+    // });
 
     // Http post method
     let first_request = true;
@@ -96,7 +101,12 @@ async function _fetch(page, options) {
     }
 
     // load images or not
-    if (options.load_images && options.load_images.toLowerCase() === "false") {
+    if (options.load_images && options.load_images.toLowerCase() === "true") {
+        page.on("request", request => {
+            if (!!!request_reseted)
+                request.continue()
+        })
+    } else {
         page.on("request", request => {
             if (!!!request_reseted) {
                 if (request.resourceType() === 'image')
@@ -105,26 +115,22 @@ async function _fetch(page, options) {
                     request.continue();
             }
         })
-    } else {
-        page.on("request", request => {
-            if (!!!request_reseted)
-                request.continue()
-        })
     }
 
     let error_message = null;
     page.on("error", e => {
         error_message = e
     });
+    page.on("pageerror", e => {
+        error_message = e
+    });
 
     let page_settings = {};
     var page_timeout = options.timeout ? options.timeout * 1000 : 20 * 1000;
     page_settings["timeout"] = page_timeout
-    page_settings["waitUntil"] = ["domcontentloaded", "networkidle0"];
+    page_settings["waitUntil"] = ["domcontentloaded", "networkidle2"];
 
-    console.log('goto ', options.url)
     var response = await page.goto(options.url, page_settings);
-
     if (error_message) {
         throw error_message
     }
@@ -167,7 +173,7 @@ async function make_result(page, options, error) {
         orig_url: options.url,
         status_code: status_code || 599,
         error: error,
-        content: page_content,
+        content: page_content || "",
         headers: headers,
         url: page.url(),
         cookies: cookies,
@@ -189,7 +195,7 @@ app.get("/", function (request, response) {
 
 
 
-let max_open_pages = 5;
+let max_open_pages = 20;
 let opened_page_nums = 0;
 
 app.post("/", async (request, response) => {
@@ -219,5 +225,5 @@ if (process.argv.length === 3) {
 }
 
 app.listen(port, function () {
-    console.log("puppeteer fetcher running on port " + port);
+    console.log("server listen: " + port);
 });

@@ -2,12 +2,12 @@ FROM python:3.7-stretch
 MAINTAINER binux <roy@binux.me>
 
 # install phantomjs
-RUN mkdir -p /opt/phantomjs \
-        && cd /opt/phantomjs \
-        && wget -O phantomjs.tar.bz2 https://bitbucket.org/ariya/phantomjs/downloads/phantomjs-2.1.1-linux-x86_64.tar.bz2 \
-        && tar xavf phantomjs.tar.bz2 --strip-components 1 \
-        && ln -s /opt/phantomjs/bin/phantomjs /usr/local/bin/phantomjs \
-        && rm phantomjs.tar.bz2
+# RUN mkdir -p /opt/phantomjs \
+#         && cd /opt/phantomjs \
+#         && wget -O phantomjs.tar.bz2 https://bitbucket.org/ariya/phantomjs/downloads/phantomjs-2.1.1-linux-x86_64.tar.bz2 \
+#         && tar xavf phantomjs.tar.bz2 --strip-components 1 \
+#         && ln -s /opt/phantomjs/bin/phantomjs /usr/local/bin/phantomjs \
+#         && rm phantomjs.tar.bz2
 
 
 # install nodejs
@@ -32,7 +32,8 @@ WORKDIR /opt/pyspider
 RUN pip install -e .[all]
      
 # isntall your package
-RUN pip install arrow bs4 html5lib deep-diff
+RUN pip install arrow bs4 html5lib deep-diff dataset
+
 RUN npm i cnpm -g \
     && cnpm i puppeteer express
 

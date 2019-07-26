@@ -1,0 +1,27 @@
+{
+  "name": "pyspider",
+  "version": "1.0.0",
+  "description": "pyspider [![Build Status]][Travis CI] [![Coverage Status]][Coverage] [![Try]][Demo] ========",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ider-zh/pyspider.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ider-zh/pyspider/issues"
+  },
+  "homepage": "https://github.com/ider-zh/pyspider#readme",
+  "dependencies": {
+    "express": "^4.17.1",
+    "puppeteer": "^1.19.0"
+  }
+}

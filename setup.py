@@ -52,7 +52,7 @@ else:  # 2.7
     ])
 
 extras_require_all = [
-    'mysql-connector-python>=1.2.2',
+    'mysql-connector-python>=8.0.12',
     'pymongo>=2.7.2',
     'redis',
     'redis-py-cluster',

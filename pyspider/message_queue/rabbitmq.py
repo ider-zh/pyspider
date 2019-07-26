@@ -94,6 +94,7 @@ class PikaQueue(object):
         import pika.exceptions
 
         self.connection = pika.BlockingConnection(pika.URLParameters(self.amqp_url))
+        self.connection.connect() 
         self.channel = self.connection.channel()
         try:
             self.channel.queue_declare(self.name)
@@ -230,6 +231,7 @@ class AmqpQueue(PikaQueue):
                                           password=parsed.password or 'guest',
                                           virtual_host=unquote(
                                               parsed.path.lstrip('/') or '%2F'))
+        self.connection.connect() 
         self.channel = self.connection.channel()
         try:
             self.channel.queue_declare(self.name)
